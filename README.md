@@ -13,8 +13,26 @@ a GPU team would solve, and to demonstrate hands-on engineering.
 4. Runs an agent loop that writes pandas, **executes it in a sandboxed process**, and
    turns real results into **Pydantic-validated, grounded insights**.
 
-## Run it
+## Ollama setup (fully local option)
+If you want Option B below (no API key), install and start Ollama first:
+```bash
+curl -fsSL https://ollama.com/install.sh | sh   # install
+systemctl status ollama 2>&1 || ollama serve &  # make sure the server is running
+ollama pull llama3.1                            # pull the model
+curl http://localhost:11434/api/tags            # sanity check
+```
 
+## Create virtual environment if desired
+```bash
+python3 -m venv ~/gpu-insight-agent-env
+source ~/gpu-insight-agent/bin/activate
+```
+- Deactive when done
+```bash
+deactivate
+```
+
+## Run it
 ```bash
 pip install -r requirements.txt
 
