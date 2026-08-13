@@ -21,10 +21,16 @@ class LLMClient:
         )
         self.model = model or os.environ.get("LLM_MODEL", "gpt-4o-mini")
 
-    def complete(self, system: str, user: str, temperature: float = 0.0) -> str:
+    def complete(self, system: str, user: str, temperature: float = 0.0, json_mode: bool = False) -> str:
         """One chat completion. temperature is a knob the caller sets deliberately:
         higher for exploration (we want diverse questions), 0 for grounding/summarizing
-        (we want reproducibility)."""
+        (we want reproducibility).
+
+        json_mode: force structured output via response_format instead of relying on
+        prompt wording alone. Local models (Ollama/llama3.1) drift into prose far more
+        readily than OpenAI's models do; both OpenAI and Ollama's OpenAI-compatible
+        endpoint support response_format={"type": "json_object"}.
+        """
         resp = self.client.chat.completions.create(
             model=self.model,
             temperature=temperature,
@@ -32,5 +38,6 @@ class LLMClient:
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
             ],
+            response_format={"type": "json_object"} if json_mode else None,
         )
         return resp.choices[0].message.content or ""
