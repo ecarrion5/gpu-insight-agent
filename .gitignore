@@ -1,0 +1,9 @@
+# ignore pycache files
+**/__pycache__/**
+
+# ignore virtual environment files
+**/venv/**
+
+# ignore sample data files
+**/sample_data/**
+
