@@ -17,11 +17,13 @@ import json
 import hashlib
 import pandas as pd
 
+# import supporting modulde
 from schemas import AnalysisStep, Insight
 from llm_client import LLMClient
 from sandbox import run_pandas
 from profiler import profile, compact_schema
 
+# define the system prompts for planning and insight generation
 PLAN_SYS = (
     "You are a data analyst exploring GPU performance data for NON-OBVIOUS insights.\n"
     "Given a schema, propose ONE specific analytical question and the pandas code to\n"
@@ -43,7 +45,9 @@ def _json_from(text: str) -> dict:
     start, end = text.find("{"), text.rfind("}")
     if start == -1 or end == -1:
         raise ValueError(f"no JSON object found in model output: {text[:200]!r}")
-    return json.loads(text[start : end + 1])
+    # strict=False: local models (e.g. Ollama/llama3.1) often emit literal newlines
+    # inside string values instead of escaping them as \n; OpenAI's models don't.
+    return json.loads(text[start : end + 1], strict=False)
 
 
 def _plan_step(llm: LLMClient, schema: str, asked: list[str], max_retries: int = 3) -> AnalysisStep:
@@ -55,10 +59,10 @@ def _plan_step(llm: LLMClient, schema: str, asked: list[str], max_retries: int =
     last_err = ""
     for _ in range(max_retries):
         prompt = base + (f"\n\nYour previous attempt was rejected: {last_err}" if last_err else "")
-        raw = llm.complete(PLAN_SYS, prompt, temperature=0.7)  # exploration gives diversity
+        raw = llm.complete(PLAN_SYS, prompt, temperature=0.7, json_mode=True)  # exploration -> diversity
         try:
-            return AnalysisStep(**_json_from(raw))     # Pydantic validates; may raise ValidationError or bad JSON
-        except Exception as e:
+            return AnalysisStep(**_json_from(raw))             # Pydantic validates; may raise
+        except Exception as e:                                 # ValidationError or bad JSON
             last_err = str(e)
     raise RuntimeError(f"planning failed after {max_retries} attempts: {last_err}")
 
@@ -86,12 +90,13 @@ def analyze(df: pd.DataFrame, n_insights: int = 5, verbose: bool = True) -> list
         if status != "ok":
             continue  # skip the failed branch; the loop will plan a different question
 
+        # Otherwise, we have a good question. Continue to get the insight.
         # Ground the insight in the REAL result, not the model's imagination.
         user = (
             f"QUESTION: {step.question}\nCODE: {step.pandas_code}\n"
             f"EXECUTED RESULT: {payload}\nSummarize as JSON."
         )
-        raw = llm.complete(INSIGHT_SYS, user, temperature=0.0)  # grounding -> deterministic
+        raw = llm.complete(INSIGHT_SYS, user, temperature=0.0, json_mode=True)  # grounding -> deterministic
         try:
             insights.append(Insight(**_json_from(raw)))
         except Exception as e:
